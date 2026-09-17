@@ -226,14 +226,23 @@ static void sendPong(const IPAddress &ip, uint16_t port,
 }
 
 static void sendHello(const IPAddress &ip, uint16_t port, uint32_t seq) {
-  uint8_t payload[2 + 32];
+  // payload: [ver][hid_ready][name\0][board-id\0]
+  // The board id is the MAC-derived serial, unique per board, so the PC app
+  // can distinguish several boards on the same LAN and bind to the right one.
+  uint8_t payload[2 + 32 + 20];
   payload[0] = PROTO_VERSION;
   payload[1] = mkhid.ready() ? 1 : 0;
   size_t n = strlen(DEVICE_LABEL);
   if (n > 31) n = 31;
   memcpy(payload + 2, DEVICE_LABEL, n);
-  payload[2 + n] = 0;
-  sendFrame(T_HELLO, ip, port, payload, 2 + n + 1, seq);
+  size_t off = 2 + n;
+  payload[off++] = 0;                       // end of name
+  size_t idn = strlen(serialNumber);
+  if (idn > 19) idn = 19;
+  memcpy(payload + off, serialNumber, idn);
+  off += idn;
+  payload[off++] = 0;                       // end of board id
+  sendFrame(T_HELLO, ip, port, payload, off, seq);
 }
 
 static void handlePacket(int len, const IPAddress &ip, uint16_t port) {
